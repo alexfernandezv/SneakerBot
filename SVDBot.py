@@ -15,12 +15,23 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from config import keys
+from threading import Thread
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchElementException
 
 
-def CheckSizes(myUrl):
+def CheckSizes(myUrl,driver):
+          while True:
+                try:
+                    form = driver.find_element_by_id("product_addtocart_form")
+                    print("El producto esta disponible. Comprando...",)
+                    break
+                except NoSuchElementException:
+                    print("El producto aun no esta disponible para comprar. Reintentando...")
+                    driver.refresh()
+                    continue
 
-          driver.get(myUrl)
-          WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "product_addtocart_form")))
+          #WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "product_addtocart_form")))
           elementoTallas = driver.find_element_by_class_name('product-options-wrapper')
           todasTallas = elementoTallas.find_elements_by_class_name('swatch-option')  #todas las tallas
           tallasNoDisponibles= elementoTallas.find_elements_by_class_name('disabled')
@@ -33,27 +44,32 @@ def CheckSizes(myUrl):
               auxList.append(talla.get_attribute('innerHTML'))
 
           aux=str(myUrl).split("/")
-          print("----------------------------------------")
-          print("Tallas disponibles para "+ aux[-1]+ " :")
-          for sizes in tallasComprar:
-                    print("Talla "+sizes )
-          print("----------------------------------------")
 
-          size = float(random.choice(tallasComprar))
-          frac, whole = math.modf(size)
-          if frac == 0.0:
-              size = int(whole)
+          if len(tallasComprar)==0:
+              print ("No hay tallas disponibles para "+aux[-1])
+              return  0, 0,aux[-1]
+          else:
+              print("----------------------------------------")
+              print("Tallas disponibles para "+ aux[-1]+ " :")
+              for sizes in tallasComprar:
+                        print("Talla "+sizes )
+              print("----------------------------------------")
 
-          print("Talla escogida---> " + str(size))
+              size = float(random.choice(tallasComprar))
+              frac, whole = math.modf(size)
+              if frac == 0.0:
+                  size = int(whole)
 
-          divPosition=auxList.index(str(size))
+              print("Talla escogida---> " + str(size))
 
-          return size,divPosition,aux[-1]
+              divPosition=auxList.index(str(size))
 
-def agregarCarrito(myUrl,size,divPosition):
+              return size,divPosition,aux[-1]
+
+def agregarCarrito(size,divPosition,driver,productoURL):
 
 
-          driver.get(myUrl)
+          ##driver.get(myUrl)
           aux= driver.find_element_by_class_name('product-options-wrapper')
           s1=str("//*[contains(text(), '{0}')]").format(size)
 
@@ -78,9 +94,9 @@ def agregarCarrito(myUrl,size,divPosition):
           driver.find_element_by_xpath(provincia).click()
           driver.find_element_by_xpath("//INPUT[@name='postcode']").send_keys(keys['postal_code'])
           driver.find_element_by_xpath("//INPUT[@name='telephone']").send_keys(keys['phone_number'])
-          WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//BUTTON[@data-role='opc-continue']")))
-          driver.find_element_by_xpath("//BUTTON[@data-role='opc-continue']").click()
-
+          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//BUTTON[@data-role='opc-continue']")))
+          continueEL=driver.find_element_by_xpath("//BUTTON[@data-role='opc-continue']")
+          driver.execute_script("arguments[0].click();", continueEL)
 
           WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//DIV[@class='payment-group']")))
           """
@@ -127,24 +143,32 @@ def agregarCarrito(myUrl,size,divPosition):
 
           lastButton = driver.find_element_by_xpath("(//BUTTON[@class='action primary checkout'])")
           driver.execute_script("arguments[0].click();", lastButton)
+          print("Tu " + prod + "ha sido comprado satisfactoriamente, comprueba el correo")
+          driver=createDriver()
+          driver.get(productoURL)
+          size, divPos, prod1 = CheckSizes(productoURL, driver)
+          if size != 0:
+              agregarCarrito(size, divPos, driver, productoURL)
 
 
 
-"""""
-          WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='mini-cart']/div/div[4]/div/div")))
-          #driver.switch_to.frame(driver.find_element_by_class_name("zoid-component-frame"))
-          driver.implicitly_wait(10)
-          pay=driver.find_element_by_xpath("//*[@id='mini-cart']/div/div[4]/div/div")
-          driver.execute_script("arguments[0].click();", pay)
-          #driver.execute_script("arguments[0].click();", driver.find_element_by_class_name("zoid-outlet"))
-          """
+def createDriver():
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.headless = False
+    driver = webdriver.Chrome(r"C:\Users\Nuria\PycharmProjects\SneakerBot\chromedriver.exe", options=chrome_options)
+    driver.create_options()
+    driver.maximize_window()
+    return driver
+
 if __name__ == '__main__':
 
-     driver = webdriver.Chrome() ##inicializamos chrome
-     driver.maximize_window()
-     #productoURL=str(input("Introduce la URL del producto a comprar (espacio y intro para confirmar): "))
+    productoURL=str(input("Introduce la URL del producto a comprar (pulsa ESPACIO + INTRO para confirmar): "))
+    driver=createDriver()
+    driver.get(productoURL)
+    size, divPos, prod = CheckSizes(productoURL, driver)
 
-     productoURL=str(input("Introduce la URL del producto a comprar (pulsa ESPACIO + INTRO para confirmar): "))
-     size,divPos,prod=CheckSizes(productoURL)
-     agregarCarrito(productoURL,size,divPos)
-     print("Tu " + prod + "ha sido comprado satisfactoriamente, comprueba el correo")
+    if size!=0:
+        agregarCarrito(size, divPos, driver,productoURL)
+
+
+
