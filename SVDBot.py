@@ -1,174 +1,111 @@
-# File to create the Base Url
-# https://www.adidas.ca/en/gazelle-shoes/BB5478.html?forceSelSize=BB5478_530 Size=4
-# What sizes are currently available
-# Add to Cart Button
-# Checkout Pop up
-# Checkout complete
-# Payment complete
-
 import math
 import random
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.select import Select
-from selenium.webdriver.support.ui import WebDriverWait
-from config import keys
-from threading import Thread
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
+import os
+import sys
+import time
 
+from functionalities import autobuyer
 
-def CheckSizes(myUrl,driver):
-          while True:
-                try:
-                    form = driver.find_element_by_id("product_addtocart_form")
-                    print("El producto esta disponible. Comprando...",)
-                    break
-                except NoSuchElementException:
-                    print("El producto aun no esta disponible para comprar. Reintentando...")
-                    driver.refresh()
-                    continue
+bot_title="""   _____  __      __  _____      ____            _   
+  / ____| \ \    / / |  __ \    |  _ \          | |  
+ | (___    \ \  / /  | |  | |   | |_) |   ___   | |_ 
+  \___ \    \ \/ /   | |  | |   |  _ <   / _ \  | __|
+  ____) |    \  /    | |__| |   | |_) | | (_) | | |_ 
+ |_____/      \/     |_____/    |____/   \___/   \__|   
+"""
 
-          #WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "product_addtocart_form")))
-          elementoTallas = driver.find_element_by_class_name('product-options-wrapper')
-          todasTallas = elementoTallas.find_elements_by_class_name('swatch-option')  #todas las tallas
-          tallasNoDisponibles= elementoTallas.find_elements_by_class_name('disabled')
+def menu():
+    clear_screen()
+    print(bot_title)
+    print("\n")
+    print("MENU:")
 
-          tallasComprar = []
-          auxList=[]
-          for talla in todasTallas:
-              if talla not in tallasNoDisponibles:
-               tallasComprar.append(talla.get_attribute('innerHTML'))
-              auxList.append(talla.get_attribute('innerHTML'))
+    menu_options = ["Auto-buyer", "Monitor","Discord WebHook Settings", "Exit"]
 
-          aux=str(myUrl).split("/")
+    for i, option in enumerate(menu_options):
+        print("{}) {}".format(i + 1, option))
 
-          if len(tallasComprar)==0:
-              print ("No hay tallas disponibles para "+aux[-1])
-              return  0, 0,aux[-1]
-          else:
-              print("----------------------------------------")
-              print("Tallas disponibles para "+ aux[-1]+ " :")
-              for sizes in tallasComprar:
-                        print("Talla "+sizes )
-              print("----------------------------------------")
+    print("\n")
+    sel = choose(menu_options, "Select an option: ")
 
-              size = float(random.choice(tallasComprar))
-              frac, whole = math.modf(size)
-              if frac == 0.0:
-                  size = int(whole)
+    if sel == 1:
+        autobuyer_run()
+    elif sel == 2:
+        monitor_run()
+    elif sel == 3:
+        webhook_options()
+    elif sel == 4:
+        sys.exit()
 
-              print("Talla escogida---> " + str(size))
+def choose(choices, message):
+    while True:
+        try:
+            sel = int(input(message + " [1-{}]: ".format(len(choices))))
+            if 1 <= sel <= len(choices):
+                break
+            else:
+                print("!!!!Selection must be in range!!!!")
+        except ValueError:
+            print("!!!!Input must be integer!!!!")
+    return sel
 
-              divPosition=auxList.index(str(size))
+def clear_screen():
+    if os.name == "nt":
+        os.system("cls")
+    else:
+        os.system("clear")
 
-              return size,divPosition,aux[-1]
+def autobuyer_run():
+    try:
+        with open("webhook.txt", "r") as f:
+            webhook_link = f.read()
+    except FileNotFoundError:
+        print("[-] Error: File 'webhook.txt' not found")
+        webhook_link=""
 
-def agregarCarrito(size,divPosition,driver,productoURL):
+    productURL = str(input("Intro the URL of the product to purchase (SPACE + INTRO to confirm): "))
+    bot=autobuyer.AutoBuyer(productURL,webhook_link)
+    driver =bot.createDriver()
+    driver.get(productURL)
+    size, divPos, prod = bot.CheckSizes(productURL, driver)
+    if size != 0:
+        bot.agregarCarrito(size, divPos, driver,prod)
+def monitor_run():
 
+def webhook_options():
+    clear_screen()
+    print(bot_title)
+    print("\n")
+    print("Discord Webhook settings")
+    print("\n")
 
-          ##driver.get(myUrl)
-          aux= driver.find_element_by_class_name('product-options-wrapper')
-          s1=str("//*[contains(text(), '{0}')]").format(size)
+    menu_options = ["Set webhook link", "Clear webhook link", "Show current webhook link", "Back"]
+    for i, option in enumerate(menu_options):
+        print("{}) {}".format(i + 1, option))
+    sel = choose(menu_options, "Select one of the options: ")
+    print("\n")
+    if sel == 1:
+        webhook_link = input("Insert webhook link: ")
+        webhook_link = webhook_link[: -1]
+        with open("webhook.txt", "w") as f:
 
-          aux2=driver.find_elements_by_xpath(s1)
-          selector=str("div[index='{0}']").format(divPosition)
-          s = aux.find_element_by_css_selector(selector)
-          driver.execute_script("arguments[0].click();", s)
-
-          webElement= driver.find_element_by_id("product-addtocart-button")
-          driver.execute_script("arguments[0].click();", webElement)
-
-          WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//A[@data-bind='attr: { href: window.checkout.checkoutUrl }']")))
-          driver.find_element_by_xpath("//A[@data-bind='attr: { href: window.checkout.checkoutUrl }']").click()
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//INPUT[@id='customer-email']")))
-          driver.find_element_by_xpath("//INPUT[@id='customer-email']").send_keys(keys['email'])
-          driver.find_element_by_xpath("//INPUT[@name='firstname']").send_keys(keys['first_name'])
-          driver.find_element_by_xpath("//INPUT[@name='lastname']").send_keys(keys['last_name'])
-          driver.find_element_by_xpath("//INPUT[@name='street[0]']").send_keys(keys['street_address'])
-          driver.find_element_by_xpath("//INPUT[@name='city']").send_keys(keys['city'])
-          driver.find_element_by_xpath("//SELECT[@name='region_id']").click()
-          provincia=str("//OPTION[@data-title='{0}']").format(keys['province'])
-          driver.find_element_by_xpath(provincia).click()
-          driver.find_element_by_xpath("//INPUT[@name='postcode']").send_keys(keys['postal_code'])
-          driver.find_element_by_xpath("//INPUT[@name='telephone']").send_keys(keys['phone_number'])
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//BUTTON[@data-role='opc-continue']")))
-          continueEL=driver.find_element_by_xpath("//BUTTON[@data-role='opc-continue']")
-          driver.execute_script("arguments[0].click();", continueEL)
-
-          WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//DIV[@class='payment-group']")))
-          """
-       
-          # paypal
-          driver.find_element_by_xpath("//INPUT[@id='braintree_paypal']").click()
-          elmnt=driver.find_element_by_xpath("//INPUT[@id='policies-braintree_paypal']")
-          driver.execute_script("arguments[0].click();", elmnt)
-          driver.find_element_by_xpath("//DIV[@data-container='paypal-button']").click()   """
-          #targeta credito
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//INPUT[@id='braintree']")))
-          driver.find_element_by_xpath("//INPUT[@id='braintree']").click()
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//IFRAME[@name='braintree-hosted-field-number']")))
-          frame=driver.find_element_by_xpath("//IFRAME[@name='braintree-hosted-field-number']")
-          driver.switch_to.frame(frame)
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//INPUT[@id='credit-card-number']")))
-          driver.find_element_by_xpath("//INPUT[@id='credit-card-number']").send_keys(keys['card_number'])
-          driver.switch_to.default_content()
-
-          frame1=driver.find_element_by_xpath("//IFRAME[@name='braintree-hosted-field-expirationMonth']")
-          driver.switch_to.frame(frame1)
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//INPUT[@id='expiration-month']")))
-          driver.find_element_by_xpath("//INPUT[@id='expiration-month']").send_keys(keys['expiration_month'])
-          driver.switch_to.default_content()
-
-          frame2 = driver.find_element_by_xpath("//IFRAME[@name='braintree-hosted-field-expirationYear']")
-          driver.switch_to.frame(frame2)
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//INPUT[@id='expiration-year']")))
-          driver.find_element_by_xpath("//INPUT[@id='expiration-year']").send_keys(keys['expiration_year'])
-          driver.switch_to.default_content()
-
-          frame3 = driver.find_element_by_xpath("//IFRAME[@name='braintree-hosted-field-cvv']")
-          driver.switch_to.frame(frame3)
-          WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//INPUT[@id='cvv']")))
-          driver.find_element_by_xpath("//INPUT[@id='cvv']").send_keys(keys['card_cvv'])
-          driver.switch_to.default_content()
-
-          elmnt = driver.find_element_by_xpath("//INPUT[@id='policies-braintree']")
-          driver.execute_script("arguments[0].click();", elmnt)
-          checkbox=driver.find_element_by_xpath("//INPUT[@id='billing-address-same-as-shipping-shared']").is_selected()
-          checkEl=driver.find_element_by_xpath("//INPUT[@id='billing-address-same-as-shipping-shared']")
-          if checkbox==False:
-              driver.execute_script("arguments[0].click();", checkEl)
-
-          lastButton = driver.find_element_by_xpath("(//BUTTON[@class='action primary checkout'])")
-          driver.execute_script("arguments[0].click();", lastButton)
-          print("Tu " + prod + "ha sido comprado satisfactoriamente, comprueba el correo")
-          driver=createDriver()
-          driver.get(productoURL)
-          size, divPos, prod1 = CheckSizes(productoURL, driver)
-          if size != 0:
-              agregarCarrito(size, divPos, driver, productoURL)
-
-
-
-def createDriver():
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.headless = False
-    driver = webdriver.Chrome(r"C:\Users\Nuria\PycharmProjects\SneakerBot\chromedriver.exe", options=chrome_options)
-    driver.create_options()
-    driver.maximize_window()
-    return driver
+            f.write(webhook_link)
+        print("Webhook link successfully updated")
+    elif sel == 2:
+        with open("webhook.txt", "w") as f:
+            f.write("")
+        print("Webhook link successfully cleared")
+    elif sel == 3:
+        try:
+            with open("webhook.txt", "r") as f:
+                webhook_link = f.read()
+            print("Webhook link:\n{}".format(webhook_link))
+        except FileNotFoundError:
+            print("[-] Error: File 'webhook.txt' not found")
+    elif sel == 4:
+        menu()
+    input("Press enter...")
+    webhook_options()
 
 if __name__ == '__main__':
-
-    productoURL=str(input("Introduce la URL del producto a comprar (pulsa ESPACIO + INTRO para confirmar): "))
-    driver=createDriver()
-    driver.get(productoURL)
-    size, divPos, prod = CheckSizes(productoURL, driver)
-
-    if size!=0:
-        agregarCarrito(size, divPos, driver,productoURL)
-
-
-
+    menu()
